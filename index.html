@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Taka Income Pro</title>
+    <title>Taka Income Pro - Final Fix</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -65,6 +65,7 @@
         .card-title i { color: var(--primary-color); }
         .action-button { width: 100%; padding: 16px; border: none; border-radius: 16px; background: var(--primary-color); color: black; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 4px 15px rgba(240, 185, 11, 0.3); text-transform: uppercase; letter-spacing: 0.5px; }
         .action-button:active { transform: scale(0.97); }
+        .action-button:disabled { background: #333; color: #666; cursor: not-allowed; box-shadow: none; transform: none; animation: none; }
         .secondary-button { background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); margin-top: 12px; box-shadow: none; }
         .chart-container { position: relative; height: 200px; width: 100%; }
         .nav-bar { position: fixed; bottom: 25px; left: 20px; right: 20px; max-width: 460px; margin: 0 auto; background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 20px; padding: 12px 25px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5); z-index: 1000; }
@@ -189,8 +190,8 @@
             AD_REWARD: 0.001,
             
             // --- COMMISSION SETTINGS ---
-            REFERRAL_PERCENT_AD: 0.05,      // 10% Commission on Ad Watch
-            REFERRAL_PERCENT_WITHDRAW: 0.02, // 2% Commission on Withdrawal
+            REFERRAL_PERCENT_AD: 0.05,      
+            REFERRAL_PERCENT_WITHDRAW: 0.02, 
             // ---------------------------
 
             DAILY_AD_LIMIT: 15,
@@ -208,6 +209,10 @@
         const tg = window.Telegram ? window.Telegram.WebApp : null;
         let db, firebaseDb;
         let currentUserTelegramId = null;
+        
+        // --- LOCK VARIABLES FOR DOUBLE COUNT PREVENTION ---
+        let isAdProcessing = false;
+        let lastRewardTimestamp = 0; // To prevent double rewards within short time
 
         // --- SECRET RESET LOGIC ---
         let secretClicks = 0;
@@ -222,11 +227,14 @@
         });
 
         // --- STATE MANAGEMENT ---
+        // Helper to get today's date in YYYY-MM-DD format (Consistent across devices)
+        const getTodayDate = () => new Date().toISOString().split('T')[0];
+
         let state = { 
             totalEarning: 0.000, 
             adCount: 0, 
             adsWatchedToday: 0, 
-            lastAdWatchedDate: new Date().toLocaleDateString(), 
+            lastAdWatchedDate: getTodayDate(), 
             cooldownUntil: null, 
             weeklyActivity: [0, 0, 0, 0, 0, 0, 0], 
             withdrawalHistory: [], 
@@ -285,9 +293,12 @@
             state.totalEarning = parseFloat(parseFloat(state.totalEarning).toFixed(5)) || 0;
             state.adCount = parseInt(state.adCount) || 0;
             state.adsWatchedToday = parseInt(state.adsWatchedToday) || 0;
-            if (state.lastAdWatchedDate !== new Date().toLocaleDateString()) { 
+            
+            // Check Date (ISO format robust check)
+            const today = getTodayDate();
+            if (state.lastAdWatchedDate !== today) { 
                 state.adsWatchedToday = 0; 
-                state.lastAdWatchedDate = new Date().toLocaleDateString(); 
+                state.lastAdWatchedDate = today; 
             }
         }
 
@@ -311,7 +322,6 @@
                     return; 
                 } 
                 
-                // IP Restriction for Device Login still exists, but Ad watching is now free
                 const ip = await getIpAddress();
                 state.lastUsedIp = ip; 
                 
@@ -350,10 +360,12 @@
             
             clearInterval(cooldownInterval);
             
-            const isAdmin = config.ADMIN_IDS.includes(parseInt(currentUserTelegramId));
-            
-            if (!isAdmin && state.cooldownUntil && new Date() < new Date(state.cooldownUntil)) {
-                el.watchBtn.disabled = true; el.watchBtn.style.opacity = '0.5';
+            // NOTE: Removed Admin Check for Limit temporarily so you can test limit
+            const isLimitReached = state.adsWatchedToday >= config.DAILY_AD_LIMIT;
+            const isCooldown = state.cooldownUntil && new Date() < new Date(state.cooldownUntil);
+
+            if (isCooldown) {
+                el.watchBtn.disabled = true; 
                 const updateTimer = () => { 
                     const remaining = new Date(state.cooldownUntil) - new Date(); 
                     if (remaining <= 0) { 
@@ -369,52 +381,57 @@
                     } 
                 };
                 cooldownInterval = setInterval(updateTimer, 1000); updateTimer();
-            } else { 
-                el.watchBtn.disabled = !isAdmin && state.adsWatchedToday >= config.DAILY_AD_LIMIT; 
+            } else if (isLimitReached) {
+                el.watchBtn.disabled = true;
+                el.watchBtn.querySelector('span').textContent = 'Daily Limit Reached'; 
+                el.watchBtn.classList.remove('pulsing');
+            } else {
+                el.watchBtn.disabled = false;
                 el.watchBtn.style.opacity = '1'; 
-                el.watchBtn.querySelector('span').textContent = (!isAdmin && state.adsWatchedToday >= config.DAILY_AD_LIMIT) ? 'Daily Limit Reached' : 'Watch & Earn'; 
+                el.watchBtn.querySelector('span').textContent = 'Watch & Earn';
+                el.watchBtn.classList.add('pulsing');
             }
-            if(!el.watchBtn.disabled) el.watchBtn.classList.add('pulsing'); else el.watchBtn.classList.remove('pulsing');
+            
             updateChart();
         }
 
-        // --- FIXED WATCH AD FUNCTION (REMOVED IP RESTRICTION) ---
+        // --- FIXED WATCH AD FUNCTION ---
         async function watchAd() {
-            const currentUserId = currentUserTelegramId;
-            const isAdmin = config.ADMIN_IDS.includes(parseInt(currentUserId));
+            // 1. HARD LOCK to prevent double clicks
+            if (isAdProcessing) return;
 
-            if (!isAdmin) {
-                if (state.cooldownUntil && new Date() < new Date(state.cooldownUntil)) {
-                     safeAlert('Please wait for the cooldown timer to finish.');
-                     return;
-                }
-                
-                // --- REMOVED IP CHECKING LOGIC HERE ---
-                // No more "Same IP detected" alert.
+            // 2. CHECK LIMIT (For everyone, even admins, to verify it works)
+            if (state.adsWatchedToday >= config.DAILY_AD_LIMIT) {
+                safeAlert('Daily limit reached! Come back tomorrow.');
+                return;
             }
+            if (state.cooldownUntil && new Date() < new Date(state.cooldownUntil)) {
+                 safeAlert('Please wait for the cooldown timer to finish.');
+                 return;
+            }
+
+            isAdProcessing = true; // LOCK ON
 
             el.watchBtn.disabled = true;
             el.watchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading...';
             el.adOverlay.style.display = 'flex';
             document.getElementById('ad-status-text').innerText = "Loading Ad...";
 
-            // ----------------------------------------------------
-            // Ad Loading Logic with Fallback
-            // ----------------------------------------------------
-            const adFunction = typeof show_10383465 === 'function' ? show_10383465 : null;
-
-            if (adFunction) {
-                // Try to show the real ad
-                adFunction().then(() => {
-                    processReward();
-                }).catch((e) => {
-                    // If real ad fails, switch to simulation
-                    console.warn("Ad SDK failed, switching to fallback:", e);
-                    simulateAdProcess(); 
-                });
-            } else {
-                // Ad SDK missing, use simulation immediately
-                console.warn("Ad SDK missing, using fallback.");
+            try {
+                if (typeof show_10383465 === 'function') {
+                    // Expecting SDK to return a Promise
+                    await show_10383465().then(() => {
+                        processReward();
+                    }).catch(err => {
+                        console.log("SDK Rejected", err);
+                        simulateAdProcess(); // If user closes ad early or error
+                    });
+                } else {
+                    console.log("SDK Missing");
+                    simulateAdProcess();
+                }
+            } catch (error) {
+                console.error("Ad Execution Error", error);
                 simulateAdProcess();
             }
         }
@@ -423,24 +440,35 @@
             document.getElementById('ad-status-text').innerText = "Verifying Ad View...";
             setTimeout(() => {
                  processReward();
-            }, 3000); // 2 seconds delay
+            }, 3000); 
         }
 
         function processReward() {
+            // 3. REWARD COOLDOWN (The ultimate double-count prevention)
+            const now = Date.now();
+            if (now - lastRewardTimestamp < 5000) { // 5 seconds lock
+                console.log("Ignored double reward call");
+                resetAdState();
+                return;
+            }
+            lastRewardTimestamp = now;
+
             el.adOverlay.style.display = 'none';
             const reward = config.AD_REWARD;
+            
+            // UPDATE STATE
             state.totalEarning = parseFloat((state.totalEarning + reward).toFixed(5));
             state.adCount++;
             state.adsWatchedToday++;
             state.weeklyActivity[new Date().getDay()]++;
 
-            const isAdmin = config.ADMIN_IDS.includes(parseInt(currentUserTelegramId));
-            if (!isAdmin && state.adsWatchedToday >= config.DAILY_AD_LIMIT) {
+            // LIMIT CHECK LOGIC
+            if (state.adsWatchedToday >= config.DAILY_AD_LIMIT) {
                 const cd = new Date(); cd.setMinutes(cd.getMinutes() + config.COOLDOWN_MINUTES);
                 state.cooldownUntil = cd.toISOString();
             }
 
-            // --- COMMISSION LOGIC ---
+            // COMMISSION LOGIC
             if (currentUserTelegramId && firebaseDb) {
                 const userRef = firebaseDb.ref('users/' + currentUserTelegramId);
                 userRef.child('referred_by').once('value').then(snapshot => {
@@ -458,10 +486,14 @@
             updateUI();
             safeTgAction(t => t.HapticFeedback.notificationOccurred('success'));
             safeAlert(`Success! Reward Added.`);
-            if (isAdmin || state.adsWatchedToday < config.DAILY_AD_LIMIT) {
-                el.watchBtn.innerHTML = '<i class="fa-solid fa-circle-play"></i><span>Watch & Earn</span>';
-                el.watchBtn.disabled = false;
-            }
+            
+            resetAdState();
+        }
+
+        function resetAdState() {
+            isAdProcessing = false; // LOCK OFF
+            el.adOverlay.style.display = 'none';
+            updateUI(); // Ensures button state is refreshed correctly
         }
 
         async function handleWithdrawal(e) {
@@ -575,4 +607,4 @@
         window.onload = initApp;
     </script>
 </body>
-                                                                                                                                                                      </html>
+    </html>
