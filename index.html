@@ -7,6 +7,18 @@
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- ********************************************************** -->
+    <!--  নিচে MONETAG এর স্ক্রিপ্ট বসান (Vignette / Interstitial)  -->
+    <!-- ********************************************************** -->
+    
+    <!-- উদাহরণ: <script src="https://alwingulla.com/88/tag.min.js" data-zone="123456" async data-cfasync="false"></script> -->
+    
+    <!-- আপনার আসল স্ক্রিপ্ট এখানে পেস্ট করুন -->
+    
+    
+    <!-- ********************************************************** -->
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <!-- Firebase SDK -->
@@ -97,7 +109,7 @@
 </head>
 <body>
     <div id="preloader"><div class="loader-ring"></div><div id="preloader-percentage">0%</div></div>
-    <div id="ad-loader-overlay"><div class="loader-ring"></div><span>Opening Ad...</span></div>
+    <div id="ad-loader-overlay"><div class="loader-ring"></div><span>Checking Ad...</span></div>
     
     <div class="container" style="max-width: 500px; margin: 0 auto; display: none;">
         <!-- Header -->
@@ -177,8 +189,7 @@
     <script>
         // --- CONFIGURATION ---
         const config = {
-            // MONETAG DIRECT LINK
-            MONETAG_DIRECT_LINK: 'https://otieu.com/4/7521191', 
+            // MONETAG SCRIPT IS IN THE HEAD SECTION NOW
             
             BOT_TOKEN: '7716639611:AAEg5zkgfjCrTiM3ryCC68Yq8QoIWjZwwlI', 
             ADMIN_IDS: [7383787169],
@@ -209,18 +220,15 @@
         function loadState() { return new Promise(resolve => { if (!db) return resolve(); const req = db.transaction(['userState'], 'readonly').objectStore('userState').get('currentUser'); req.onsuccess = () => { if (req.result) state = { ...state, ...req.result }; if(!state.completedBonusTasks) state.completedBonusTasks=[]; if (state.lastAdWatchedDate !== new Date().toLocaleDateString()) { state.adsWatchedToday = 0; state.lastAdWatchedDate = new Date().toLocaleDateString(); } resolve(); }; req.onerror = () => resolve(); }); }
         async function getIpAddress() { try { const r = await fetch('https://api.ipify.org?format=json'); const d = await r.json(); return d.ip; } catch { return '0.0.0.0'; } }
         
-        // --- UPDATED DEVICE CHECK LOGIC ---
+        // --- DEVICE CHECK LOGIC ---
         function checkDeviceRestriction(currentUserId) {
             return new Promise(async (resolve) => {
-                // 1. Check LocalStorage (Strongest check for same browser)
                 const storedUser = localStorage.getItem('registered_uid');
                 if (storedUser && storedUser != currentUserId) {
                     console.log('Multi-account detected via LocalStorage');
-                    resolve(true); // Is blocked
+                    resolve(true); 
                     return;
                 }
-
-                // 2. Check IP via IndexedDB (If they cleared cache but same IP)
                 const ip = await getIpAddress();
                 currentIpAddress = ip;
                 
@@ -228,12 +236,8 @@
                 const r = db.transaction(['appUsage'], 'readonly').objectStore('appUsage').get(ip);
                 r.onsuccess = () => {
                     if (r.result && !storedUser) {
-                        // IP exists in DB, but this browser has no UserID -> likely 2nd account on same network
-                        // Optional: You can disable this if many users share WiFi.
-                        // For now, enabling it as requested.
                         resolve(true); 
                     } else {
-                        // New valid user
                         if(!storedUser) {
                             localStorage.setItem('registered_uid', currentUserId);
                             db.transaction(['appUsage'], 'readwrite').objectStore('appUsage').put({ ip: ip, date: new Date().toISOString() });
@@ -247,7 +251,15 @@
 
         function safeTgAction(action) { if (tg && tg.initData) action(tg); }
         function safeAlert(msg) { safeTgAction(t => t.showAlert(msg)); if(!tg.initData) alert(msg); }
-        function openExternalLink(url) { if(tg) tg.openLink(url); else window.open(url, '_blank'); }
+        
+        // UPDATED LINK OPENER FOR TELEGRAM MINI APP
+        function openExternalLink(url) { 
+            if(tg && tg.openLink) {
+                tg.openLink(url); 
+            } else {
+                window.open(url, '_blank'); 
+            }
+        }
 
         let cooldownInterval;
         function updateUI() {
@@ -263,25 +275,50 @@
             updateChart();
         }
 
+        // --- UPDATED WATCH AD FUNCTION (NO DIRECT LINK) ---
         async function watchAd() {
+            // Check IP & Cooldown
             if (state.lastUsedIp && !state.cooldownUntil) {
                  const newIp = await getIpAddress();
                  if (newIp === state.lastUsedIp) { safeAlert('Please change IP (Airplane Mode ON/OFF).'); return; } 
                  state.lastUsedIp = null; saveState();
             }
-            if(config.MONETAG_DIRECT_LINK === 'https://otieu.com/4/7521191') { safeAlert('https://otieu.com/4/7521191'); return; }
+
+            // Button Disable & Loading Effect
+            el.watchBtn.disabled = true;
+            el.watchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading Ad...';
+
+            // Show Overlay (Makes users wait for the ad script to load)
             el.adOverlay.style.display = 'flex';
-            openExternalLink(config.MONETAG_DIRECT_LINK);
+            el.adOverlay.querySelector('span').innerText = "Please watch the ad...";
+
+            // Wait 10 seconds for the ad script (Vignette/Interstitial) to show and complete
+            // This replaces the direct link opening.
             setTimeout(() => {
                 el.adOverlay.style.display = 'none';
-                state.totalEarning += config.AD_REWARD; state.adCount++; state.adsWatchedToday++; state.weeklyActivity[new Date().getDay()]++;
+                
+                // Add Reward
+                state.totalEarning += config.AD_REWARD; 
+                state.adCount++; 
+                state.adsWatchedToday++; 
+                state.weeklyActivity[new Date().getDay()]++;
+                
+                // Check Limit
                 if (state.adsWatchedToday >= config.DAILY_AD_LIMIT) {
                     const cd = new Date(); cd.setMinutes(cd.getMinutes() + config.COOLDOWN_MINUTES);
                     state.cooldownUntil = cd.toISOString(); state.lastUsedIp = currentIpAddress;
                 }
-                saveState(); updateUI();
+                
+                saveState(); 
+                updateUI();
                 safeTgAction(t => t.HapticFeedback.notificationOccurred('success'));
-            }, 3000);
+                
+                // Reset Button
+                if (state.adsWatchedToday < config.DAILY_AD_LIMIT) {
+                     el.watchBtn.innerHTML = '<i class="fa-solid fa-circle-play"></i><span>Watch & Earn</span>';
+                     el.watchBtn.disabled = false;
+                }
+            }, 10000); // 10 Seconds Wait
         }
 
         async function handleWithdrawal(e) {
@@ -329,4 +366,4 @@
         window.onload = initApp;
     </script>
 </body>
-                                       </html>
+                                                                          </html>
