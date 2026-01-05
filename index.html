@@ -7,15 +7,8 @@
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    <!-- *********** AD SCRIPT *********** -->
-    <!-- আপনার Zone ID ঠিক আছে কিনা নিশ্চিত করুন -->
     <script src='https://libtl.com/sdk.js' data-zone='10383465' data-sdk='show_10383465'></script>
-    <!-- ********************************* -->
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    
-    <!-- Firebase SDK (v8 for compatibility) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
@@ -179,7 +172,7 @@
         // --- CONFIGURATION ---
         const config = {
             BOT_TOKEN: '7716639611:AAEg5zkgfjCrTiM3ryCC68Yq8QoIWjZwwlI', 
-            ADMIN_IDS: [7383787169],
+            ADMIN_IDS: [7383787169], // আপনার অ্যাডমিন আইডি এখানে আছে
             BOT_USERNAME: 'simpletasktg_bot',
             TELEGRAM_CHANNEL_LINK: 'https://t.me/withoutinvestmenttgchannel',
             ADMIN_SUPPORT_LINK: 'https://t.me/+a9F0enpHIb8wYjc9',
@@ -274,12 +267,23 @@
             }
         }
 
+        // --- SECURITY CHECK (CORRECTED) ---
         function checkDeviceRestriction(uid) {
             return new Promise(async (resolve) => {
+                // Admin Bypass Logic (Corrected)
+                // config.ADMIN_IDS is already defined at the top
+                if (config.ADMIN_IDS.includes(parseInt(uid))) {
+                    console.log("Admin detected! Bypassing restrictions.");
+                    resolve(false); 
+                    return; 
+                }
+
+                // Regular User Check
                 const storedUser = localStorage.getItem('registered_uid');
                 if (storedUser && storedUser != uid) { resolve(true); return; } // Device already used
+                
                 const ip = await getIpAddress();
-                state.lastUsedIp = ip; // Track IP
+                state.lastUsedIp = ip; 
                 if (!db) { resolve(false); return; }
                 const r = db.transaction(['appUsage'], 'readonly').objectStore('appUsage').get(ip);
                 r.onsuccess = () => {
@@ -551,4 +555,4 @@
         window.onload = initApp;
     </script>
 </body>
-                                                                                                                                   </html>
+    </html>
