@@ -269,7 +269,7 @@
                  if (newIp === state.lastUsedIp) { safeAlert('Please change IP (Airplane Mode ON/OFF).'); return; } 
                  state.lastUsedIp = null; saveState();
             }
-            if(config.MONETAG_DIRECT_LINK === 'https://otieu.com/4/7521191') { safeAlert('Setup Direct Link first!'); return; }
+            if(config.MONETAG_DIRECT_LINK === 'https://otieu.com/4/7521191') { safeAlert('https://otieu.com/4/7521191'); return; }
             el.adOverlay.style.display = 'flex';
             openExternalLink(config.MONETAG_DIRECT_LINK);
             setTimeout(() => {
