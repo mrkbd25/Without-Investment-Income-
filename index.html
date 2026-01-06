@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>USDT Income Pro - Final Fix</title>
+    <title>USDT Income Pro - Fixed Version</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -92,8 +92,8 @@
         @keyframes pulse-gold { 0% { box-shadow: 0 0 0 0 rgba(240, 185, 11, 0.4); } 70% { box-shadow: 0 0 0 15px rgba(240, 185, 11, 0); } 100% { box-shadow: 0 0 0 0 rgba(240, 185, 11, 0); } }
         .history-item { padding: 15px 0; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
         .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: bold; }
-        .status-pending { background: rgba(255, 165, 0, 0.2); color: orange; }
-        .status-success { background: rgba(0, 255, 0, 0.2); color: #00ff88; }
+        .status-Pending { background: rgba(255, 165, 0, 0.2); color: orange; }
+        .status-Success { background: rgba(0, 255, 0, 0.2); color: #00ff88; }
         #ad-loader-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 6000; align-items: center; justify-content: center; flex-direction: column; color: white; gap: 15px; }
     </style>
 </head>
@@ -188,14 +188,10 @@
             TELEGRAM_CHANNEL_LINK: 'https://t.me/withoutinvestmenttgchannel',
             ADMIN_SUPPORT_LINK: 'https://t.me/+a9F0enpHIb8wYjc9',
             AD_REWARD: 0.001,
-            
-            // --- COMMISSION SETTINGS ---
             REFERRAL_PERCENT_AD: 0.05,      
             REFERRAL_PERCENT_WITHDRAW: 0.02, 
-            // ---------------------------
-
             DAILY_AD_LIMIT: 15,
-            MINIMUM_WITHDRAWAL: 10,
+            MINIMUM_WITHDRAWAL: 10.00,
             COOLDOWN_MINUTES: 60,
             withdrawalMethods: ['Binance Pay ID','Bkash'],
             firebase: { apiKey: "AIzaSyDIclnY0Xi-2Xsg8vvNUbX_cJRmt1wI7Ks", authDomain: "withoutinvestment-82782.firebaseapp.com", databaseURL: "https://withoutinvestment-82782-default-rtdb.firebaseio.com", projectId: "withoutinvestment-82782", storageBucket: "withoutinvestment-82782.firebasestorage.app", messagingSenderId: "955413852152", appId: "1:955413852152:web:872486ffbbbce91797f00d" },
@@ -209,13 +205,11 @@
         const tg = window.Telegram ? window.Telegram.WebApp : null;
         let db, firebaseDb;
         let currentUserTelegramId = null;
-        
-        // --- LOCK VARIABLES FOR DOUBLE COUNT PREVENTION ---
         let isAdProcessing = false;
-        let lastRewardTimestamp = 0; // To prevent double rewards within short time
-
-        // --- SECRET RESET LOGIC ---
+        let lastRewardTimestamp = 0;
         let secretClicks = 0;
+        let withdrawalData = []; // Store history from Firebase
+
         document.getElementById('reset-trigger').addEventListener('click', () => {
             secretClicks++;
             if (secretClicks >= 5) {
@@ -226,8 +220,6 @@
             }
         });
 
-        // --- STATE MANAGEMENT ---
-        // Helper to get today's date in YYYY-MM-DD format (Consistent across devices)
         const getTodayDate = () => new Date().toISOString().split('T')[0];
 
         let state = { 
@@ -236,21 +228,18 @@
             adsWatchedToday: 0, 
             lastAdWatchedDate: getTodayDate(), 
             cooldownUntil: null, 
-            weeklyActivity: [0, 0, 0, 0, 0, 0, 0], 
-            withdrawalHistory: [], 
+            weeklyActivity: [0, 0, 0, 0, 0, 0, 0], // Analytics Data
             lastUsedIp: null, 
             completedBonusTasks: []
         };
 
         const el = { preloader: document.getElementById('preloader'), container: document.querySelector('.container'), totalEarning: document.getElementById('total-earning'), adCount: document.getElementById('ad-count'), adsToday: document.getElementById('ads-today-count'), refCount: document.getElementById('referral-count'), watchBtn: document.getElementById('watch-ad-button'), withdrawForm: document.getElementById('withdraw-form'), adOverlay: document.getElementById('ad-loader-overlay'), profilePic: document.getElementById('profile-pic'), greeting: document.getElementById('greeting'), joinChannel: document.getElementById('join-channel-button'), adminContact: document.getElementById('admin-contact-button'), historyList: document.getElementById('history-list'), bonusList: document.getElementById('bonus-tasks-list') };
 
-        // --- HELPER FUNCTIONS ---
         function safeTgAction(action) { if (tg && tg.initData) action(tg); }
         function safeAlert(msg) { safeTgAction(t => t.showAlert(msg)); if(!tg || !tg.initData) alert(msg); }
         function openExternalLink(url) { if(tg && tg.openLink) { tg.openLink(url); } else { window.open(url, '_blank'); } }
         async function getIpAddress() { try { const r = await fetch('https://api.ipify.org?format=json'); const d = await r.json(); return d.ip; } catch { return '0.0.0.0'; } }
 
-        // --- DATABASE & STATE ---
         function initLocalDB() {
             return new Promise((resolve) => {
                 const request = indexedDB.open('ProAppDB', 3);
@@ -271,7 +260,8 @@
                 firebaseDb.ref('users/' + currentUserTelegramId).update({
                     balance: state.totalEarning,
                     ad_count: state.adCount,
-                    ads_today: state.adsWatchedToday
+                    ads_today: state.adsWatchedToday,
+                    weekly_activity: state.weeklyActivity // Saving chart data to Firebase
                 });
             }
         }
@@ -293,8 +283,8 @@
             state.totalEarning = parseFloat(parseFloat(state.totalEarning).toFixed(5)) || 0;
             state.adCount = parseInt(state.adCount) || 0;
             state.adsWatchedToday = parseInt(state.adsWatchedToday) || 0;
+            if(!state.weeklyActivity || state.weeklyActivity.length !== 7) state.weeklyActivity = [0,0,0,0,0,0,0];
             
-            // Check Date (ISO format robust check)
             const today = getTodayDate();
             if (state.lastAdWatchedDate !== today) { 
                 state.adsWatchedToday = 0; 
@@ -302,36 +292,20 @@
             }
         }
 
-        // --- SECURITY CHECK ---
         function checkDeviceRestriction(uid) {
             return new Promise(async (resolve) => {
                 const currentUserId = String(uid).trim(); 
                 const adminList = config.ADMIN_IDS.map(id => String(id).trim());
-
                 document.getElementById('debug-id-display').innerText = `Detected ID: ${currentUserId}`;
-
-                if (adminList.includes(currentUserId)) {
-                    console.log("Admin Access Granted");
-                    resolve(false); 
-                    return; 
-                }
-
+                if (adminList.includes(currentUserId)) { resolve(false); return; }
                 const storedUser = localStorage.getItem('registered_uid');
-                if (storedUser && storedUser !== currentUserId) { 
-                    resolve(true); 
-                    return; 
-                } 
-                
+                if (storedUser && storedUser !== currentUserId) { resolve(true); return; } 
                 const ip = await getIpAddress();
                 state.lastUsedIp = ip; 
-                
                 if (!db) { resolve(false); return; }
-
                 const r = db.transaction(['appUsage'], 'readonly').objectStore('appUsage').get(ip);
                 r.onsuccess = () => {
-                    if (r.result && !storedUser) { 
-                        resolve(true); 
-                    } 
+                    if (r.result && !storedUser) { resolve(true); } 
                     else { 
                         if(!storedUser) { 
                             localStorage.setItem('registered_uid', currentUserId); 
@@ -344,7 +318,6 @@
             });
         }
 
-        // --- UI UPDATES ---
         let cooldownInterval;
         function updateUI() {
             if (state.cooldownUntil && new Date() >= new Date(state.cooldownUntil)) { 
@@ -360,7 +333,6 @@
             
             clearInterval(cooldownInterval);
             
-            // NOTE: Removed Admin Check for Limit temporarily so you can test limit
             const isLimitReached = state.adsWatchedToday >= config.DAILY_AD_LIMIT;
             const isCooldown = state.cooldownUntil && new Date() < new Date(state.cooldownUntil);
 
@@ -392,26 +364,15 @@
                 el.watchBtn.classList.add('pulsing');
             }
             
-            updateChart();
+            // NOTE: Chart update moved to dedicated function call
         }
 
-        // --- FIXED WATCH AD FUNCTION ---
         async function watchAd() {
-            // 1. HARD LOCK to prevent double clicks
             if (isAdProcessing) return;
+            if (state.adsWatchedToday >= config.DAILY_AD_LIMIT) { safeAlert('Daily limit reached! Come back tomorrow.'); return; }
+            if (state.cooldownUntil && new Date() < new Date(state.cooldownUntil)) { safeAlert('Please wait for the cooldown timer to finish.'); return; }
 
-            // 2. CHECK LIMIT (For everyone, even admins, to verify it works)
-            if (state.adsWatchedToday >= config.DAILY_AD_LIMIT) {
-                safeAlert('Daily limit reached! Come back tomorrow.');
-                return;
-            }
-            if (state.cooldownUntil && new Date() < new Date(state.cooldownUntil)) {
-                 safeAlert('Please wait for the cooldown timer to finish.');
-                 return;
-            }
-
-            isAdProcessing = true; // LOCK ON
-
+            isAdProcessing = true;
             el.watchBtn.disabled = true;
             el.watchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading...';
             el.adOverlay.style.display = 'flex';
@@ -419,13 +380,7 @@
 
             try {
                 if (typeof show_10383465 === 'function') {
-                    // Expecting SDK to return a Promise
-                    await show_10383465().then(() => {
-                        processReward();
-                    }).catch(err => {
-                        console.log("SDK Rejected", err);
-                        simulateAdProcess(); // If user closes ad early or error
-                    });
+                    await show_10383465().then(() => { processReward(); }).catch(err => { console.log("SDK Rejected", err); simulateAdProcess(); });
                 } else {
                     console.log("SDK Missing");
                     simulateAdProcess();
@@ -438,37 +393,30 @@
 
         function simulateAdProcess() {
             document.getElementById('ad-status-text').innerText = "Verifying Ad View...";
-            setTimeout(() => {
-                 processReward();
-            }, 3000); 
+            setTimeout(() => { processReward(); }, 3000); 
         }
 
         function processReward() {
-            // 3. REWARD COOLDOWN (The ultimate double-count prevention)
             const now = Date.now();
-            if (now - lastRewardTimestamp < 5000) { // 5 seconds lock
-                console.log("Ignored double reward call");
-                resetAdState();
-                return;
-            }
+            if (now - lastRewardTimestamp < 5000) { resetAdState(); return; }
             lastRewardTimestamp = now;
 
             el.adOverlay.style.display = 'none';
             const reward = config.AD_REWARD;
             
-            // UPDATE STATE
             state.totalEarning = parseFloat((state.totalEarning + reward).toFixed(5));
             state.adCount++;
             state.adsWatchedToday++;
-            state.weeklyActivity[new Date().getDay()]++;
+            
+            // ANALYTICS FIX: Update Weekly Array
+            const dayIndex = new Date().getDay();
+            state.weeklyActivity[dayIndex] = (state.weeklyActivity[dayIndex] || 0) + 1;
 
-            // LIMIT CHECK LOGIC
             if (state.adsWatchedToday >= config.DAILY_AD_LIMIT) {
                 const cd = new Date(); cd.setMinutes(cd.getMinutes() + config.COOLDOWN_MINUTES);
                 state.cooldownUntil = cd.toISOString();
             }
 
-            // COMMISSION LOGIC
             if (currentUserTelegramId && firebaseDb) {
                 const userRef = firebaseDb.ref('users/' + currentUserTelegramId);
                 userRef.child('referred_by').once('value').then(snapshot => {
@@ -484,6 +432,7 @@
 
             saveLocalState();
             updateUI();
+            updateChart(); // Force chart update
             safeTgAction(t => t.HapticFeedback.notificationOccurred('success'));
             safeAlert(`Success! Reward Added.`);
             
@@ -491,9 +440,9 @@
         }
 
         function resetAdState() {
-            isAdProcessing = false; // LOCK OFF
+            isAdProcessing = false;
             el.adOverlay.style.display = 'none';
-            updateUI(); // Ensures button state is refreshed correctly
+            updateUI();
         }
 
         async function handleWithdrawal(e) {
@@ -507,13 +456,26 @@
             
             const btn = document.getElementById('withdraw-submit-button'); 
             btn.disabled = true; btn.querySelector('.spinner').style.display='block'; btn.querySelector('.button-text').style.display='none';
+            
             const user = tg ? tg.initDataUnsafe?.user : { first_name: 'Test', id: '000' }; 
             const msg = `<b>💸 Payout Request</b>\nUser: ${user.first_name}\nID: <code>${user.id}</code>\nMethod: ${method}\nWallet: <code>${acc}</code>\nAmount: $${amt}`;
+            
             try { 
+                // 1. Send Telegram Notification
                 await Promise.all(config.ADMIN_IDS.map(id => fetch(`https://api.telegram.org/bot${config.BOT_TOKEN}/sendMessage`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ chat_id: id, text: msg, parse_mode: 'HTML' }) }))); 
                 
-                // --- WITHDRAWAL COMMISSION ---
-                if (currentUserTelegramId && firebaseDb) {
+                // 2. Save to Firebase (Fixing the "Pending forever" issue)
+                if(currentUserTelegramId && firebaseDb) {
+                    const txRef = firebaseDb.ref('users/' + currentUserTelegramId + '/withdrawals').push();
+                    await txRef.set({
+                        amount: amt,
+                        method: method,
+                        account: acc,
+                        date: new Date().toISOString(),
+                        status: 'Pending'
+                    });
+                    
+                    // Referral Commission Logic for Withdrawal
                     const userRef = firebaseDb.ref('users/' + currentUserTelegramId);
                     userRef.child('referred_by').once('value').then(snapshot => {
                         const referrerId = snapshot.val();
@@ -527,19 +489,74 @@
                 }
 
                 state.totalEarning = parseFloat((state.totalEarning - amt).toFixed(5));
-                state.withdrawalHistory.unshift({ method, amount: amt, date: new Date().toISOString(), status: 'Pending' }); 
                 saveLocalState(); 
                 updateUI(); 
                 closeModal('withdrawModal'); 
                 safeAlert('Withdrawal Submitted!'); 
-            } catch { safeAlert('Connection Error.'); } finally { btn.disabled = false; btn.querySelector('.spinner').style.display='none'; btn.querySelector('.button-text').style.display='block'; }
+            } catch (e) { 
+                console.error(e);
+                safeAlert('Connection Error. Try again.'); 
+            } finally { 
+                btn.disabled = false; btn.querySelector('.spinner').style.display='none'; btn.querySelector('.button-text').style.display='block'; 
+            }
         }
 
-        function updateChart() { const ctx = document.getElementById('activityChart').getContext('2d'); if(window.myChart) window.myChart.destroy(); const gradient = ctx.createLinearGradient(0,0,0,300); gradient.addColorStop(0, 'rgba(240, 185, 11, 0.5)'); gradient.addColorStop(1, 'rgba(240, 185, 11, 0.0)'); window.myChart = new Chart(ctx, { type: 'line', data: { labels: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], datasets: [{ label: 'Ads', data: state.weeklyActivity, borderColor: '#F0B90B', backgroundColor: gradient, fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor:'#fff' }] }, options: { scales: { y: { display: false }, x: { grid: { display: false }, ticks: { color: '#666' } } }, plugins: { legend: { display: false } }, responsive: true, maintainAspectRatio: false } }); }
+        // ANALYTICS FIX: Chart now renders properly
+        function updateChart() { 
+            const ctx = document.getElementById('activityChart').getContext('2d'); 
+            if(window.myChart) window.myChart.destroy(); 
+            const gradient = ctx.createLinearGradient(0,0,0,300); 
+            gradient.addColorStop(0, 'rgba(240, 185, 11, 0.5)'); 
+            gradient.addColorStop(1, 'rgba(240, 185, 11, 0.0)'); 
+            
+            // Ensure data is array
+            const dataPoints = Array.isArray(state.weeklyActivity) ? state.weeklyActivity : [0,0,0,0,0,0,0];
+
+            window.myChart = new Chart(ctx, { 
+                type: 'line', 
+                data: { 
+                    labels: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], 
+                    datasets: [{ 
+                        label: 'Ads', 
+                        data: dataPoints, 
+                        borderColor: '#F0B90B', 
+                        backgroundColor: gradient, 
+                        fill: true, 
+                        tension: 0.4, 
+                        pointRadius: 4, 
+                        pointBackgroundColor:'#fff' 
+                    }] 
+                }, 
+                options: { 
+                    scales: { y: { display: false }, x: { grid: { display: false }, ticks: { color: '#666' } } }, 
+                    plugins: { legend: { display: false } }, 
+                    responsive: true, 
+                    maintainAspectRatio: false 
+                } 
+            }); 
+        }
+
         function showModal(id) { if(id === 'historyModal') renderHistory(); if(id === 'bonusTasksModal') renderBonus(); document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        function renderHistory() { el.historyList.innerHTML = state.withdrawalHistory.length ? state.withdrawalHistory.map(i => `<div class="history-item"><div><span style="font-weight:600;color:white;">${i.method}</span><br><span style="font-size:10px;color:#666;">${new Date(i.date).toLocaleDateString()}</span></div><div style="text-align:right;"><span style="color:#F0B90B;font-weight:bold;">$${i.amount.toFixed(3)}</span><br><span class="status-badge ${i.status === 'Pending' ? 'status-pending' : 'status-success'}">${i.status}</span></div></div>`).join('') : '<p style="text-align:center;color:#666;">No transactions yet.</p>'; }
+        
+        // HISTORY FIX: Now renders from Firebase Data
+        function renderHistory() { 
+            const list = withdrawalData.sort((a,b) => new Date(b.date) - new Date(a.date));
+            el.historyList.innerHTML = list.length ? list.map(i => `
+                <div class="history-item">
+                    <div>
+                        <span style="font-weight:600;color:white;">${i.method}</span><br>
+                        <span style="font-size:10px;color:#666;">${new Date(i.date).toLocaleDateString()}</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="color:#F0B90B;font-weight:bold;">$${parseFloat(i.amount).toFixed(3)}</span><br>
+                        <span class="status-badge status-${i.status}">${i.status}</span>
+                    </div>
+                </div>`).join('') : '<p style="text-align:center;color:#666;">No transactions yet.</p>'; 
+        }
+        
         function renderBonus() { el.bonusList.innerHTML = config.bonusTasks.map(t => { const done = state.completedBonusTasks.includes(t.id); return `<div class="card" style="padding:15px; display:flex; justify-content:space-between; align-items:center;"><div><span style="color:white;font-weight:600;">${t.title}</span><br><span style="color:#F0B90B;font-size:12px;">+$${t.reward}</span></div><button style="background:${done?'#222':'var(--primary-color)'}; color:${done?'#666':'#000'}; border:none; padding:8px 16px; border-radius:8px; font-weight:bold;" ${done?'disabled':''} onclick="doBonus('${t.id}')">${done?'Done':'Claim'}</button></div>` }).join(''); }
+        
         window.doBonus = (id) => { const task = config.bonusTasks.find(t => t.id === id); openExternalLink(task.link); const btn = event.target; btn.innerText = "Checking..."; btn.disabled = true; setTimeout(() => { if(!state.completedBonusTasks.includes(id)) { state.totalEarning += task.reward; state.completedBonusTasks.push(id); saveLocalState(); updateUI(); renderBonus(); safeAlert('Bonus Claimed!'); } }, task.duration * 1000); };
 
         async function initApp() {
@@ -564,8 +581,11 @@
             try {
                 firebase.initializeApp(config.firebase);
                 firebaseDb = firebase.database();
+                
                 if (currentUserTelegramId) {
                     const userRef = firebaseDb.ref('users/' + currentUserTelegramId);
+                    
+                    // REFERRAL FIX: Ensuring counter updates correctly
                     const startParam = tg?.initDataUnsafe?.start_param;
                     if (startParam && parseInt(startParam) !== parseInt(currentUserTelegramId)) {
                         userRef.child('referred_by').once('value', snapshot => {
@@ -575,8 +595,30 @@
                             }
                         });
                     }
-                    userRef.child('referrals').on('value', snapshot => { el.refCount.textContent = snapshot.val() || 0; });
-                    userRef.child('balance').once('value', s => { if(s.val() > state.totalEarning) { state.totalEarning = parseFloat(s.val()); updateUI(); } });
+
+                    // TEAM COUNT LISTENER FIX
+                    userRef.child('referrals').on('value', snapshot => { 
+                        if(el.refCount) el.refCount.textContent = snapshot.val() || 0; 
+                    });
+
+                    // SYNC BALANCE & ANALYTICS
+                    userRef.once('value', s => { 
+                        const d = s.val();
+                        if(d) {
+                            if(d.balance && d.balance > state.totalEarning) state.totalEarning = parseFloat(d.balance);
+                            if(d.weekly_activity) state.weeklyActivity = d.weekly_activity;
+                            updateUI();
+                            updateChart();
+                        }
+                    });
+
+                    // HISTORY FIX: Listen for Firebase Status Changes
+                    userRef.child('withdrawals').on('value', snapshot => {
+                        withdrawalData = [];
+                        snapshot.forEach(child => {
+                            withdrawalData.push(child.val());
+                        });
+                    });
                 }
             } catch (e) { console.error('Firebase Error:', e); }
 
