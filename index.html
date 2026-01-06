@@ -114,7 +114,7 @@
         <!-- Balance Card -->
         <div class="balance-card">
             <div class="balance-top">
-                <div><span class="balance-label">Total USDT</span><span class="amount" id="total-earning"><span class="currency-symbol">$</span>0.000</span></div>
+                <div><span class="balance-label">Total BTTC</span><span class="amount" id="total-earning"><span class="currency-symbol">$</span>0.000</span></div>
                 <div class="binance-brand" onclick="openExternalLink('https://www.binance.com/activity/referral-entry/CPA?ref=CPA_00RPJ64DBN')">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path fill="#F0B90B" d="M16 0L9.12 6.88l6.88 6.88 6.88-6.88L16 0zm-9.76 9.76L0 16l6.24 6.24 6.24-6.24-6.24-6.24zm19.52 0L19.52 16l6.24 6.24L32 16l-6.24-6.24zM16 19.52l-6.88 6.88L16 32l6.88-6.88-6.88-6.88z"/></svg>
                     <span>BINANCE</span><i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10px; color:#aaa; margin-left:3px;"></i>
@@ -187,21 +187,21 @@
             BOT_USERNAME: 'simpletasktg_bot',
             TELEGRAM_CHANNEL_LINK: 'https://t.me/withoutinvestmenttgchannel',
             ADMIN_SUPPORT_LINK: 'https://t.me/+a9F0enpHIb8wYjc9',
-            AD_REWARD: 0.001,
+            AD_REWARD: 1000,
             REFERRAL_PERCENT_AD: 0.05,      
             REFERRAL_PERCENT_WITHDRAW: 0.02, 
             DAILY_AD_LIMIT: 15,
-            MINIMUM_WITHDRAWAL: 10.00,
+            MINIMUM_WITHDRAWAL: 21600000 BTTC,
             COOLDOWN_MINUTES: 60,
             withdrawalMethods: ['Binance Pay ID','Bkash'],
             firebase: { apiKey: "AIzaSyDIclnY0Xi-2Xsg8vvNUbX_cJRmt1wI7Ks", authDomain: "withoutinvestment-82782.firebaseapp.com", databaseURL: "https://withoutinvestment-82782-default-rtdb.firebaseio.com", projectId: "withoutinvestment-82782", storageBucket: "withoutinvestment-82782.firebasestorage.app", messagingSenderId: "955413852152", appId: "1:955413852152:web:872486ffbbbce91797f00d" },
             bonusTasks: [
-                { id: 'bonus_01', title: 'Join Alert Channel', link: 'https://t.me/developer_rk01', reward: 0.02, duration: 10 },
-                { id: 'bonus_02', title: 'Claim Red Packet', link: 'https://t.me/binance_redpacket0', reward: 0.01, duration: 10 },
-                { id: 'bonus_03', title: 'Create a fake Acount', link: 'https://otieu.com/4/7521191', reward: 0.02, duration: 15 },
-                { id: 'bonus_04', title: 'Create a fake Acount', link: 'https://www.effectivegatecpm.com/b9u38ssq?key=63e43abc6689ac22bd3af3519ac859b6', reward: 0.02, duration: 15 }
+                { id: 'bonus_01', title: 'Join Alert Channel', link: 'https://t.me/developer_rk01', reward: 1000BTTC, duration: 10 },
+                { id: 'bonus_02', title: 'Claim Red Packet', link: 'https://t.me/binance_redpacket0', reward: 1000BTTC,  duration: 10 },
+                { id: 'bonus_03', title: 'Create a fake Acount', link: 'https://otieu.com/4/7521191', reward: 2000BTTC, duration: 15 },
+                { id: 'bonus_04', title: 'Create a fake Acount', link: 'https://www.effectivegatecpm.com/b9u38ssq?key=63e43abc6689ac22bd3af3519ac859b6', reward: 2000BTTC, duration: 15 }
             ],
-            welcomeNotice: { title: "Premium Rules", message: `• Rate: $0.001 / Ad\n• Refer: 10% Ads & 2% Withdraw\n• Min Withdraw: $10.00\n\nRULES:\n1. Only one account per device.\n2. Do not use VPN/Proxy.\n3. Click "Accept" to start.` }
+            welcomeNotice: { title: "Premium Rules", message: `• Rate: $1000 BTTC / Ad\n• Refer: 10% Ads & 2% Withdraw\n• Min Withdraw: $21600000BTTC\n\nRULES:\n1. Only one account per device.\n2. Do not use VPN/Proxy.\n3. Click "Accept" to start.` }
         };
 
         const tg = window.Telegram ? window.Telegram.WebApp : null;
